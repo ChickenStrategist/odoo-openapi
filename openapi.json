@@ -1,0 +1,1880 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Odoo External API",
+    "version": "18.0",
+    "description": "Odoo is an open-source ERP platform that provides external API access via XML-RPC and JSON-RPC. This specification covers the publicly available endpoints for interacting with Odoo models and data.\n\n**Note:** Access to the external API is only available on Custom Odoo pricing plans. Access is not available on One App Free or Standard plans.\n\n## Authentication\nOdoo uses either username/password or API keys for authentication. The authenticate method returns a user ID (uid) that must be used in subsequent API calls.\n\n## Common Models\n- `res.partner`: Partners (contacts, customers, vendors)\n- `sale.order`: Sales orders\n- `sale.order.line`: Sales order lines\n- `product.product`: Products\n- `product.template`: Product templates\n- `account.move`: Invoices and journal entries\n- `purchase.order`: Purchase orders\n- `stock.picking`: Inventory operations\n- `res.users`: System users\n- `ir.model`: Model metadata\n- `ir.model.fields`: Field metadata",
+    "contact": {
+      "name": "Odoo",
+      "url": "https://www.odoo.com",
+      "email": "info@odoo.com"
+    },
+    "license": {
+      "name": "LGPL-3.0",
+      "url": "https://www.gnu.org/licenses/lgpl-3.0.html"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{instance}.odoo.com",
+      "description": "Odoo Online instance",
+      "variables": {
+        "instance": {
+          "default": "demo",
+          "description": "Your Odoo instance subdomain"
+        }
+      }
+    },
+    {
+      "url": "https://{server}",
+      "description": "Self-hosted Odoo server",
+      "variables": {
+        "server": {
+          "default": "localhost:8069",
+          "description": "Your Odoo server URL"
+        }
+      }
+    }
+  ],
+  "tags": [
+    {
+      "name": "Common",
+      "description": "Common endpoints that don't require authentication (version info, authentication)"
+    },
+    {
+      "name": "Object",
+      "description": "Object endpoints for CRUD operations on Odoo models"
+    },
+    {
+      "name": "Partners",
+      "description": "Operations on res.partner model (contacts, customers, vendors)"
+    },
+    {
+      "name": "Sales",
+      "description": "Operations on sale.order and related models"
+    },
+    {
+      "name": "Products",
+      "description": "Operations on product.product and product.template models"
+    },
+    {
+      "name": "Invoices",
+      "description": "Operations on account.move model (invoices)"
+    },
+    {
+      "name": "Purchases",
+      "description": "Operations on purchase.order model"
+    },
+    {
+      "name": "Inventory",
+      "description": "Operations on stock.picking and inventory models"
+    },
+    {
+      "name": "Metadata",
+      "description": "Operations on ir.model and ir.model.fields for introspection"
+    }
+  ],
+  "paths": {
+    "/xmlrpc/2/common/version": {
+      "post": {
+        "tags": ["Common"],
+        "summary": "Get Odoo server version",
+        "description": "Returns version information about the Odoo server. This endpoint does not require authentication.",
+        "operationId": "getVersion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/XmlRpcRequest"
+              },
+              "example": "<?xml version=\"1.0\"?>\n<methodCall>\n  <methodName>version</methodName>\n  <params></params>\n</methodCall>"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Version information",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                },
+                "example": "<?xml version=\"1.0\"?>\n<methodResponse>\n  <params>\n    <param>\n      <value>\n        <struct>\n          <member>\n            <name>server_version</name>\n            <value><string>18.0</string></value>\n          </member>\n          <member>\n            <name>server_version_info</name>\n            <value><array><data>\n              <value><int>18</int></value>\n              <value><int>0</int></value>\n              <value><int>0</int></value>\n              <value><string>final</string></value>\n              <value><int>0</int></value>\n            </data></array></value>\n          </member>\n          <member>\n            <name>server_serie</name>\n            <value><string>18.0</string></value>\n          </member>\n          <member>\n            <name>protocol_version</name>\n            <value><int>1</int></value>\n          </member>\n        </struct>\n      </value>\n    </param>\n  </params>\n</methodResponse>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/xmlrpc/2/common/authenticate": {
+      "post": {
+        "tags": ["Common"],
+        "summary": "Authenticate user",
+        "description": "Authenticates a user and returns a user ID (uid) that must be used in subsequent API calls. API keys can be used instead of passwords.",
+        "operationId": "authenticate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/XmlRpcRequest"
+              },
+              "example": "<?xml version=\"1.0\"?>\n<methodCall>\n  <methodName>authenticate</methodName>\n  <params>\n    <param><value><string>mydb</string></value></param>\n    <param><value><string>admin</string></value></param>\n    <param><value><string>admin_password</string></value></param>\n    <param><value><struct></struct></value></param>\n  </params>\n</methodCall>"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User ID (uid) on success, false on failure",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticateResponse"
+                },
+                "example": "<?xml version=\"1.0\"?>\n<methodResponse>\n  <params>\n    <param>\n      <value><int>1</int></value>\n    </param>\n  </params>\n</methodResponse>"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/xmlrpc/2/object/execute_kw": {
+      "post": {
+        "tags": ["Object"],
+        "summary": "Execute model method",
+        "description": "Executes a method on an Odoo model. This is the main endpoint for all CRUD operations.\n\nCommon methods:\n- `search`: Find record IDs matching a domain filter\n- `search_count`: Count records matching a domain filter\n- `read`: Read field values from records\n- `search_read`: Combined search and read operation\n- `create`: Create a new record\n- `write`: Update existing records\n- `unlink`: Delete records\n- `fields_get`: Get field metadata\n- `name_search`: Search records by name",
+        "operationId": "executeKw",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/xml": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteKwRequest"
+              },
+              "example": "<?xml version=\"1.0\"?>\n<methodCall>\n  <methodName>execute_kw</methodName>\n  <params>\n    <param><value><string>mydb</string></value></param>\n    <param><value><int>1</int></value></param>\n    <param><value><string>api_key_or_password</string></value></param>\n    <param><value><string>res.partner</string></value></param>\n    <param><value><string>search</string></value></param>\n    <param><value><array><data>\n      <value><array><data>\n        <value><array><data>\n          <value><string>is_company</string></value>\n          <value><string>=</string></value>\n          <value><boolean>1</boolean></value>\n        </data></array></value>\n      </data></array></value>\n    </data></array></value>\n    <param><value><struct>\n      <member>\n        <name>limit</name>\n        <value><int>10</int></value>\n      </member>\n    </struct></value></param>\n  </params>\n</methodCall>"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Method execution result",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecuteKwResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/search": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Search partners",
+        "description": "Search for partner records (contacts, customers, vendors) matching the specified domain filter. Returns a list of record IDs.",
+        "operationId": "searchPartners",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "search",
+                "args": [
+                  [
+                    ["is_company", "=", true]
+                  ]
+                ],
+                "kwargs": {
+                  "limit": 10,
+                  "offset": 0
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "List of partner IDs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "example": [7, 18, 12, 14, 17]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/search_count": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Count partners",
+        "description": "Count the number of partner records matching the specified domain filter.",
+        "operationId": "countPartners",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchCountRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "search_count",
+                "args": [
+                  [
+                    ["is_company", "=", true]
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Number of matching records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer"
+                },
+                "example": 19
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/read": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Read partner data",
+        "description": "Read field values from partner records. By default, reads all fields the user has access to.",
+        "operationId": "readPartners",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "read",
+                "args": [
+                  [7, 18, 12]
+                ],
+                "kwargs": {
+                  "fields": ["name", "email", "phone", "country_id"]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partner record data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Partner"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/search_read": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Search and read partners",
+        "description": "Combined search and read operation. Searches for partners matching the domain filter and returns their field values in a single request.",
+        "operationId": "searchReadPartners",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["is_company", "=", true],
+                    ["country_id", "=", 233]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "email", "phone", "city"],
+                  "limit": 10,
+                  "offset": 0
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partner records with requested fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Partner"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/create": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Create partner",
+        "description": "Create a new partner record (contact, customer, or vendor). Returns the ID of the created record.",
+        "operationId": "createPartner",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "create",
+                "args": [
+                  {
+                    "name": "New Customer",
+                    "email": "customer@example.com",
+                    "phone": "+1234567890",
+                    "is_company": true,
+                    "customer_rank": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ID of created partner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer"
+                },
+                "example": 78
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/write": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Update partners",
+        "description": "Update one or more partner records. All specified records will receive the same field values.",
+        "operationId": "updatePartners",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "write",
+                "args": [
+                  [78, 79],
+                  {
+                    "email": "updated@example.com",
+                    "phone": "+9876543210"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "True if update successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "example": true
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/unlink": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Delete partners",
+        "description": "Delete one or more partner records.",
+        "operationId": "deletePartners",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlinkRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "unlink",
+                "args": [
+                  [78, 79]
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "True if deletion successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "example": true
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/res.partner/fields_get": {
+      "post": {
+        "tags": ["Partners", "Object"],
+        "summary": "Get partner field metadata",
+        "description": "Get metadata about the fields available on the res.partner model.",
+        "operationId": "getPartnerFields",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FieldsGetRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "res.partner",
+                "method": "fields_get",
+                "args": [],
+                "kwargs": {
+                  "attributes": ["string", "help", "type", "required", "readonly"]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Field metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/FieldMetadata"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/sale.order/search_read": {
+      "post": {
+        "tags": ["Sales", "Object"],
+        "summary": "Search and read sales orders",
+        "description": "Search for sales orders matching the domain filter and return their field values.",
+        "operationId": "searchReadSaleOrders",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "sale.order",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["state", "in", ["draft", "sent", "sale"]]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "partner_id", "date_order", "amount_total", "state"],
+                  "limit": 20
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sales order records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SaleOrder"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/sale.order/create": {
+      "post": {
+        "tags": ["Sales", "Object"],
+        "summary": "Create sales order",
+        "description": "Create a new sales order. Returns the ID of the created order.",
+        "operationId": "createSaleOrder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "sale.order",
+                "method": "create",
+                "args": [
+                  {
+                    "partner_id": 7,
+                    "order_line": [
+                      [0, 0, {
+                        "product_id": 25,
+                        "product_uom_qty": 5,
+                        "price_unit": 100.0
+                      }]
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ID of created sales order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer"
+                },
+                "example": 123
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/product.product/search_read": {
+      "post": {
+        "tags": ["Products", "Object"],
+        "summary": "Search and read products",
+        "description": "Search for products matching the domain filter and return their field values.",
+        "operationId": "searchReadProducts",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "product.product",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["sale_ok", "=", true],
+                    ["type", "in", ["product", "consu"]]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "default_code", "list_price", "standard_price", "qty_available"],
+                  "limit": 50
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Product"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/account.move/search_read": {
+      "post": {
+        "tags": ["Invoices", "Object"],
+        "summary": "Search and read invoices",
+        "description": "Search for invoices (account.move records with move_type = 'out_invoice') and return their field values.",
+        "operationId": "searchReadInvoices",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "account.move",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["move_type", "=", "out_invoice"],
+                    ["state", "!=", "cancel"]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "partner_id", "invoice_date", "amount_total", "payment_state", "state"],
+                  "limit": 20
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invoice records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Invoice"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/purchase.order/search_read": {
+      "post": {
+        "tags": ["Purchases", "Object"],
+        "summary": "Search and read purchase orders",
+        "description": "Search for purchase orders matching the domain filter and return their field values.",
+        "operationId": "searchReadPurchaseOrders",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "purchase.order",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["state", "in", ["draft", "sent", "purchase"]]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "partner_id", "date_order", "amount_total", "state"],
+                  "limit": 20
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Purchase order records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PurchaseOrder"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/stock.picking/search_read": {
+      "post": {
+        "tags": ["Inventory", "Object"],
+        "summary": "Search and read stock pickings",
+        "description": "Search for inventory operations (pickings/transfers) matching the domain filter and return their field values.",
+        "operationId": "searchReadStockPickings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "stock.picking",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["state", "in", ["draft", "waiting", "confirmed", "assigned"]]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "partner_id", "scheduled_date", "picking_type_id", "state"],
+                  "limit": 20
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock picking records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StockPicking"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/ir.model/search_read": {
+      "post": {
+        "tags": ["Metadata", "Object"],
+        "summary": "Search and read models",
+        "description": "Get metadata about installed Odoo models. Useful for discovering available models and their properties.",
+        "operationId": "searchReadModels",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "ir.model",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["transient", "=", false]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "model", "state", "info"],
+                  "limit": 50
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Model metadata records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IrModel"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    },
+    "/xmlrpc/2/object/execute_kw/ir.model.fields/search_read": {
+      "post": {
+        "tags": ["Metadata", "Object"],
+        "summary": "Search and read model fields",
+        "description": "Get metadata about fields in Odoo models. Useful for discovering available fields and their properties.",
+        "operationId": "searchReadModelFields",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchReadRequest"
+              },
+              "example": {
+                "db": "mydb",
+                "uid": 1,
+                "password": "api_key_or_password",
+                "model": "ir.model.fields",
+                "method": "search_read",
+                "args": [
+                  [
+                    ["model", "=", "res.partner"]
+                  ]
+                ],
+                "kwargs": {
+                  "fields": ["name", "field_description", "ttype", "required", "readonly"],
+                  "limit": 100
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Field metadata records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IrModelFields"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "basicAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "Use database name as username and API key or password as password. Alternatively, include authentication parameters in the request body."
+      }
+    },
+    "schemas": {
+      "XmlRpcRequest": {
+        "type": "string",
+        "format": "xml",
+        "description": "XML-RPC request format"
+      },
+      "VersionResponse": {
+        "type": "object",
+        "properties": {
+          "server_version": {
+            "type": "string",
+            "example": "18.0"
+          },
+          "server_version_info": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "example": [18, 0, 0, "final", 0]
+          },
+          "server_serie": {
+            "type": "string",
+            "example": "18.0"
+          },
+          "protocol_version": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "AuthenticateResponse": {
+        "oneOf": [
+          {
+            "type": "integer",
+            "description": "User ID (uid) on successful authentication"
+          },
+          {
+            "type": "boolean",
+            "enum": [false],
+            "description": "False on authentication failure"
+          }
+        ]
+      },
+      "ExecuteKwRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "uid": {
+            "type": "integer",
+            "description": "User ID (from authenticate)"
+          },
+          "password": {
+            "type": "string",
+            "description": "User password or API key"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model name (e.g., 'res.partner', 'sale.order')"
+          },
+          "method": {
+            "type": "string",
+            "description": "Method name to execute",
+            "enum": ["search", "search_count", "read", "search_read", "create", "write", "unlink", "fields_get", "name_search", "check_access_rights"]
+          },
+          "args": {
+            "type": "array",
+            "description": "Positional arguments for the method"
+          },
+          "kwargs": {
+            "type": "object",
+            "description": "Keyword arguments for the method"
+          }
+        }
+      },
+      "ExecuteKwResponse": {
+        "oneOf": [
+          {
+            "type": "array",
+            "description": "List of record IDs or record data"
+          },
+          {
+            "type": "integer",
+            "description": "Single ID or count"
+          },
+          {
+            "type": "boolean",
+            "description": "Success/failure boolean"
+          },
+          {
+            "type": "object",
+            "description": "Field metadata or other structured data"
+          }
+        ]
+      },
+      "SearchRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["search"]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DomainFilter"
+            },
+            "description": "Domain filter for search"
+          },
+          "kwargs": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "description": "Number of records to skip"
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of records to return"
+              },
+              "order": {
+                "type": "string",
+                "description": "Sort order (e.g., 'name ASC', 'create_date DESC')"
+              }
+            }
+          }
+        }
+      },
+      "SearchCountRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["search_count"]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DomainFilter"
+            }
+          }
+        }
+      },
+      "ReadRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["read"]
+          },
+          "args": {
+            "type": "array",
+            "description": "Array containing a list of record IDs to read",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "kwargs": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "List of field names to read (omit to read all fields)"
+              }
+            }
+          }
+        }
+      },
+      "SearchReadRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["search_read"]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DomainFilter"
+            }
+          },
+          "kwargs": {
+            "type": "object",
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "offset": {
+                "type": "integer"
+              },
+              "limit": {
+                "type": "integer"
+              },
+              "order": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "CreateRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["create"]
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Record values to create"
+          }
+        }
+      },
+      "WriteRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["write"]
+          },
+          "args": {
+            "type": "array",
+            "description": "Two-element array: [array of IDs, object with field values]",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "UnlinkRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method", "args"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["unlink"]
+          },
+          "args": {
+            "type": "array",
+            "description": "Array containing a list of record IDs to delete",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "FieldsGetRequest": {
+        "type": "object",
+        "required": ["db", "uid", "password", "model", "method"],
+        "properties": {
+          "db": {
+            "type": "string"
+          },
+          "uid": {
+            "type": "integer"
+          },
+          "password": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["fields_get"]
+          },
+          "args": {
+            "type": "array",
+            "description": "Usually empty array for fields_get"
+          },
+          "kwargs": {
+            "type": "object",
+            "properties": {
+              "attributes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": ["string", "help", "type", "required", "readonly", "searchable", "sortable", "store"]
+                },
+                "description": "List of field attributes to retrieve"
+              }
+            }
+          }
+        }
+      },
+      "DomainFilter": {
+        "type": "array",
+        "description": "Domain filter following Odoo's domain syntax. Array of tuples: [field, operator, value]. Operators: =, !=, >, >=, <, <=, like, ilike, in, not in, child_of. Logical operators: &, |, !",
+        "items": {
+          "oneOf": [
+            {
+              "type": "array",
+              "description": "Filter condition: [field, operator, value]",
+              "minItems": 3,
+              "maxItems": 3
+            },
+            {
+              "type": "string",
+              "enum": ["&", "|", "!"],
+              "description": "Logical operator"
+            }
+          ]
+        },
+        "example": [
+          ["is_company", "=", true],
+          ["country_id", "=", 233]
+        ]
+      },
+      "Partner": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Record ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Partner name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Phone number"
+          },
+          "mobile": {
+            "type": "string",
+            "description": "Mobile number"
+          },
+          "street": {
+            "type": "string",
+            "description": "Street address"
+          },
+          "city": {
+            "type": "string",
+            "description": "City"
+          },
+          "zip": {
+            "type": "string",
+            "description": "ZIP/Postal code"
+          },
+          "country_id": {
+            "type": "array",
+            "description": "Country (ID and name)",
+            "example": [233, "United Kingdom"]
+          },
+          "is_company": {
+            "type": "boolean",
+            "description": "Is this partner a company?"
+          },
+          "customer_rank": {
+            "type": "integer",
+            "description": "Customer rank (0 = not a customer)"
+          },
+          "supplier_rank": {
+            "type": "integer",
+            "description": "Vendor rank (0 = not a vendor)"
+          },
+          "website": {
+            "type": "string",
+            "description": "Website URL"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Notes"
+          }
+        }
+      },
+      "SaleOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Order reference"
+          },
+          "partner_id": {
+            "type": "array",
+            "description": "Customer (ID and name)",
+            "example": [7, "Agrolait"]
+          },
+          "date_order": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Order date"
+          },
+          "amount_untaxed": {
+            "type": "number",
+            "format": "float",
+            "description": "Untaxed amount"
+          },
+          "amount_tax": {
+            "type": "number",
+            "format": "float",
+            "description": "Tax amount"
+          },
+          "amount_total": {
+            "type": "number",
+            "format": "float",
+            "description": "Total amount"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["draft", "sent", "sale", "done", "cancel"],
+            "description": "Order status"
+          },
+          "order_line": {
+            "type": "array",
+            "description": "Order line IDs",
+            "items": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Product name"
+          },
+          "default_code": {
+            "type": "string",
+            "description": "Internal reference"
+          },
+          "barcode": {
+            "type": "string",
+            "description": "Barcode"
+          },
+          "list_price": {
+            "type": "number",
+            "format": "float",
+            "description": "Sales price"
+          },
+          "standard_price": {
+            "type": "number",
+            "format": "float",
+            "description": "Cost"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["product", "consu", "service"],
+            "description": "Product type"
+          },
+          "sale_ok": {
+            "type": "boolean",
+            "description": "Can be sold"
+          },
+          "purchase_ok": {
+            "type": "boolean",
+            "description": "Can be purchased"
+          },
+          "qty_available": {
+            "type": "number",
+            "format": "float",
+            "description": "Quantity on hand"
+          },
+          "virtual_available": {
+            "type": "number",
+            "format": "float",
+            "description": "Forecast quantity"
+          }
+        }
+      },
+      "Invoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Invoice number"
+          },
+          "partner_id": {
+            "type": "array",
+            "description": "Customer (ID and name)"
+          },
+          "invoice_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Invoice date"
+          },
+          "invoice_date_due": {
+            "type": "string",
+            "format": "date",
+            "description": "Due date"
+          },
+          "amount_untaxed": {
+            "type": "number",
+            "format": "float"
+          },
+          "amount_tax": {
+            "type": "number",
+            "format": "float"
+          },
+          "amount_total": {
+            "type": "number",
+            "format": "float"
+          },
+          "amount_residual": {
+            "type": "number",
+            "format": "float",
+            "description": "Amount due"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["draft", "posted", "cancel"],
+            "description": "Invoice status"
+          },
+          "payment_state": {
+            "type": "string",
+            "enum": ["not_paid", "in_payment", "paid", "partial", "reversed", "invoicing_legacy"],
+            "description": "Payment status"
+          },
+          "move_type": {
+            "type": "string",
+            "enum": ["entry", "out_invoice", "out_refund", "in_invoice", "in_refund", "out_receipt", "in_receipt"],
+            "description": "Journal entry type"
+          }
+        }
+      },
+      "PurchaseOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Order reference"
+          },
+          "partner_id": {
+            "type": "array",
+            "description": "Vendor (ID and name)"
+          },
+          "date_order": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Order date"
+          },
+          "amount_untaxed": {
+            "type": "number",
+            "format": "float"
+          },
+          "amount_tax": {
+            "type": "number",
+            "format": "float"
+          },
+          "amount_total": {
+            "type": "number",
+            "format": "float"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["draft", "sent", "to approve", "purchase", "done", "cancel"],
+            "description": "Order status"
+          }
+        }
+      },
+      "StockPicking": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Transfer reference"
+          },
+          "partner_id": {
+            "type": "array",
+            "description": "Partner (ID and name)"
+          },
+          "picking_type_id": {
+            "type": "array",
+            "description": "Operation type (ID and name)"
+          },
+          "scheduled_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Scheduled date"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["draft", "waiting", "confirmed", "assigned", "done", "cancel"],
+            "description": "Transfer status"
+          },
+          "location_id": {
+            "type": "array",
+            "description": "Source location (ID and name)"
+          },
+          "location_dest_id": {
+            "type": "array",
+            "description": "Destination location (ID and name)"
+          }
+        }
+      },
+      "IrModel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Model description"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model technical name"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["manual", "base"],
+            "description": "Model state"
+          },
+          "transient": {
+            "type": "boolean",
+            "description": "Is transient model"
+          },
+          "info": {
+            "type": "string",
+            "description": "Model information"
+          }
+        }
+      },
+      "IrModelFields": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string",
+            "description": "Field technical name"
+          },
+          "field_description": {
+            "type": "string",
+            "description": "Field label"
+          },
+          "model": {
+            "type": "string",
+            "description": "Model technical name"
+          },
+          "ttype": {
+            "type": "string",
+            "enum": ["char", "text", "integer", "float", "boolean", "date", "datetime", "binary", "selection", "many2one", "one2many", "many2many", "reference", "html", "monetary"],
+            "description": "Field type"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Is required"
+          },
+          "readonly": {
+            "type": "boolean",
+            "description": "Is readonly"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["manual", "base"],
+            "description": "Field state"
+          }
+        }
+      },
+      "FieldMetadata": {
+        "type": "object",
+        "properties": {
+          "string": {
+            "type": "string",
+            "description": "Field label"
+          },
+          "help": {
+            "type": "string",
+            "description": "Help text"
+          },
+          "type": {
+            "type": "string",
+            "description": "Field type"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Is required"
+          },
+          "readonly": {
+            "type": "boolean",
+            "description": "Is readonly"
+          },
+          "searchable": {
+            "type": "boolean",
+            "description": "Is searchable"
+          },
+          "sortable": {
+            "type": "boolean",
+            "description": "Is sortable"
+          },
+          "store": {
+            "type": "boolean",
+            "description": "Is stored in database"
+          },
+          "relation": {
+            "type": "string",
+            "description": "Related model (for relational fields)"
+          },
+          "selection": {
+            "type": "array",
+            "description": "Selection options (for selection fields)",
+            "items": {
+              "type": "array"
+            }
+          }
+        }
+      }
+    }
+  }
+}
